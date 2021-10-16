@@ -17,7 +17,7 @@ Run the ordinary DQN [[1]](#references) with the default arguments:
 python main.py
 ```
 
-Run the original Rainbow [[8]](#references) using the following options:
+Run Rainbow [[8]](#references) using the following options:
 
 ```
 python main.py --double \
