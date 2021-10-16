@@ -11,13 +11,13 @@ From DQN to Rainbow
 
 Experimental results and pretrained models will be released soon.
 
-Run the ordinary DQN with the default arguments:
+Run the ordinary DQN [[1]](#references) with the default arguments:
 
 ```
 python main.py
 ```
 
-Run the original Rainbow [[1]](#references) using the following options:
+Run the original Rainbow [[8]](#references) using the following options:
 
 ```
 python main.py --double \
@@ -28,16 +28,10 @@ python main.py --double \
                --prioritize
 ```
 
-Data-efficient Rainbow [[9]](#references) can be run using the following options (note that the "unbounded" memory is implemented here in practice by manually setting the memory capacity to be the same as the maximum number of timesteps):
+Data-efficient setting [[9]](#references) can be run using the following options:
 
 ```
-python main.py --double \
-               --duel \
-               --noisy \
-               --distributional \
-               --multi-step=3 \
-               --prioritize \
-               --target-update 2000 \
+python main.py --target-update 2000 \
                --T-max 100000 \
                --learn-start 1600 \
                --memory-capacity 100000 \
