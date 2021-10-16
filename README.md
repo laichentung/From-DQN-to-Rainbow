@@ -1,4 +1,4 @@
-From ordinary DQN to Rainbow
+From DQN to Rainbow
 =======
 - [x] DQN [[2]](#references)
 - [x] Double DQN [[3]](#references)
