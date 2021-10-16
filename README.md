@@ -1,13 +1,13 @@
 From ordinary DQN to Rainbow
 =======
-- [v] DQN [[2]](#references)
-- [v] Double DQN [[3]](#references)
-- [v] Prioritised Experience Replay [[4]](#references)
-- [v] Dueling Network Architecture [[5]](#references)
-- [v] Multi-step Returns [[6]](#references)
-- [v] Distributional RL [[7]](#references)
-- [v] Noisy Nets [[8]](#references)
-- [v] Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references)
+- [x] DQN [[2]](#references)
+- [x] Double DQN [[3]](#references)
+- [x] Prioritised Experience Replay [[4]](#references)
+- [x] Dueling Network Architecture [[5]](#references)
+- [x] Multi-step Returns [[6]](#references)
+- [x] Distributional RL [[7]](#references)
+- [x] Noisy Nets [[8]](#references)
+- [x] Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references)
 
 Experimental results and pretrained models will be released soon.
 
