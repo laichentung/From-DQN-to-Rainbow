@@ -13,13 +13,12 @@ from tqdm import trange
 
 from agent import Agent
 from env import Env
-from memory import ReplayMemory
+from memory import ReplayMemory, PrioritizedReplayMemory
 from test import test
 
 
 # Note that hyperparameters may originally be reported in ATARI game frames instead of agent steps
 parser = argparse.ArgumentParser(description='Rainbow')
-parser.add_argument('--id', type=str, default='default', help='Experiment ID')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', choices=atari_py.list_games(), help='ATARI game')
@@ -28,18 +27,10 @@ parser.add_argument('--max-episode-length', type=int, default=int(108e3), metava
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
 parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
-parser.add_argument('--noisy-std', type=float, default=0.1, metavar='σ', help='Initial standard deviation of noisy linear layers')
-parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
-parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
-parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
-parser.add_argument('--model', type=str, default='./space_invaders.pth', metavar='PARAMS', help='Pretrained model (state dict)')
+parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')#default='./space_invaders.pth'
 parser.add_argument('--memory-capacity', type=int, default=int(1e6), metavar='CAPACITY', help='Experience replay memory capacity')
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
-parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω', help='Prioritised experience replay exponent (originally denoted α)')
-parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
-parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
-parser.add_argument('--target-update', type=int, default=int(8e3), metavar='τ', help='Number of steps after which to update target network')
 parser.add_argument('--reward-clip', type=int, default=1, metavar='VALUE', help='Reward clipping (0 to disable)')
 parser.add_argument('--learning-rate', type=float, default=0.0000625, metavar='η', help='Learning rate')
 parser.add_argument('--adam-eps', type=float, default=1.5e-4, metavar='ε', help='Adam epsilon')
@@ -57,13 +48,33 @@ parser.add_argument('--checkpoint-interval', default=0, help='How often to check
 parser.add_argument('--memory', help='Path to save/load the memory from')
 parser.add_argument('--disable-bzip-memory', action='store_true', help='Don\'t zip the memory file. Not recommended (zipping is a bit slower and much, much smaller)')
 
+# ablation study setting
+parser.add_argument('--double', action='store_true', help='Use target network')
+parser.add_argument('--duel', action='store_true', help='Predict value and advantages for Q')
+parser.add_argument('--noisy', action='store_true', help='Noisy network for exploration')
+parser.add_argument('--distributional', action='store_true', help='Distributional Q value')
+parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
+parser.add_argument('--prioritize', action='store_true', help='Prioritized Experience Replay')
+
+parser.add_argument('--target-update', type=int, default=int(8e3), metavar='τ', help='Number of steps after which to update target network')
+parser.add_argument('--noisy-std', type=float, default=0.1, metavar='σ', help='Initial standard deviation of noisy linear layers')
+parser.add_argument('--atoms', type=int, default=51, metavar='C', help='Discretised size of value distribution')
+parser.add_argument('--V-min', type=float, default=-10, metavar='V', help='Minimum of value distribution support')
+parser.add_argument('--V-max', type=float, default=10, metavar='V', help='Maximum of value distribution support')
+parser.add_argument('--priority-exponent', type=float, default=0.5, metavar='ω', help='Prioritised experience replay exponent (originally denoted α)')
+parser.add_argument('--priority-weight', type=float, default=0.4, metavar='β', help='Initial prioritised experience replay importance sampling weight')
+
+
 # Setup
 args = parser.parse_args()
 
 print(' ' * 26 + 'Options')
 for k, v in vars(args).items():
   print(' ' * 26 + k + ': ' + str(v))
-results_dir = os.path.join('results', args.id)
+dic = { 'double':['target_update'], 'duel':['duel'], 'noisy':['noisy_std'], 'distributional':['V_min','V_max','atoms'], 'multi_step':['multi_step'], 
+'prioritize':['priority_exponent','priority_weight']}
+setting = 'setting{' + ''.join([k[:5] + str([vars(args)[v] for v in dic[k]] if vars(args)[k] else [False]) + ',' for k in dic])[:-1] + '}'
+results_dir = os.path.join('results', setting)
 if not os.path.exists(results_dir):
   os.makedirs(results_dir)
 metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
@@ -118,20 +129,26 @@ if args.model is not None and not args.evaluate:
   mem = load_memory(args.memory, args.disable_bzip_memory)
 
 else:
-  mem = ReplayMemory(args, args.memory_capacity)
+  if args.prioritize:
+    mem = PrioritizedReplayMemory(args, args.memory_capacity)
+  else:
+    mem = ReplayMemory(args, args.memory_capacity)
 
-priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)
+priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)###
 
 
 # Construct validation memory
-val_mem = ReplayMemory(args, args.evaluation_size)
+if args.prioritize:
+  val_mem = PrioritizedReplayMemory(args, args.evaluation_size)
+else:
+  val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
 while T < args.evaluation_size:
   if done:
     state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.append(state, -1, 0.0, done)
+  val_mem.push(state, -1, 0.0, done)###
   state = next_state
   T += 1
 
@@ -154,7 +171,7 @@ else:
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-    mem.append(state, action, reward, done)  # Append transition to memory
+    mem.push(state, action, reward, done)  # Append transition to memory
 
     # Train and test
     if T >= args.learn_start:
@@ -174,7 +191,7 @@ else:
           save_memory(mem, args.memory, args.disable_bzip_memory)
 
       # Update target network
-      if T % args.target_update == 0:
+      if (args.double) and (T % args.target_update == 0):
         dqn.update_target_net()
 
       # Checkpoint the network

@@ -88,7 +88,7 @@ class SegmentTree():
   def total(self):
     return self.sum_tree[0]
 
-class ReplayMemory():
+class PrioritizedReplayMemory():
   def __init__(self, args, capacity):
     self.device = args.device
     self.capacity = capacity
@@ -102,7 +102,7 @@ class ReplayMemory():
     self.transitions = SegmentTree(capacity)  # Store transitions in a wrap-around cyclic buffer within a sum tree for querying priorities
 
   # Adds state and action at time t, reward and terminal at time t + 1
-  def append(self, state, action, reward, terminal):
+  def push(self, state, action, reward, terminal):
     state = state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))  # Only store last frame and discretise to save memory
     self.transitions.append((self.t, state, action, reward, not terminal), self.transitions.max)  # Store new transition with maximum priority
     self.t = 0 if terminal else self.t + 1  # Start new episodes with t = 0
@@ -178,3 +178,50 @@ class ReplayMemory():
     return state
 
   next = __next__  # Alias __next__ for Python 2 compatibility
+
+
+class ReplayMemory(object):
+  # memory buffer to store episodic memory
+  def __init__(self, args, capacity):
+    self.buffer = []
+    self.memory_size = capacity
+    self.discount = args.discount
+    self.n = args.multi_step
+    self.next_idx = 0
+      
+  def push(self, state, action, reward, terminal):
+    data = (state, action, reward, not terminal)
+    if len(self.buffer) <= self.memory_size: # buffer not full
+      self.buffer.append(data)
+    else: # buffer is full
+      self.buffer[self.next_idx] = data
+    self.next_idx = (self.next_idx + 1) % self.memory_size
+
+  def sample(self, batch_size):
+    # sample episodic memory
+    states, actions, rewards, next_states, nonterminals = [], [], [], [], []
+    for i in range(batch_size):
+      finish = random.randint(self.n, self.size() - 1)
+      begin = finish-self.n
+      sum_reward = 0 # n_step rewards
+      data = self.buffer[begin:finish]
+      state = data[0][0]
+      action = data[0][1]
+      nonterminal = data[0][3]
+      for j in range(self.n):
+        # compute the n-th reward
+        sum_reward += (self.gamma**j) * data[j][2]
+        states_look_ahead = data[j+1][0]
+        if not data[j][3]:
+          break
+      
+      states.append(state)
+      actions.append(action)
+      rewards.append(sum_reward)
+      next_states.append(states_look_ahead)
+      nonterminals.append(nonterminal)
+
+    return torch.tensor(states), torch.tensor(actions), torch.tensor(rewards), torch.tensor(next_states), torch.tensor(nonterminals)
+  
+  def size(self):
+      return len(self.buffer)
