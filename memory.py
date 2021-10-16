@@ -190,6 +190,7 @@ class ReplayMemory(object):
     self.next_idx = 0
       
   def push(self, state, action, reward, terminal):
+    state = state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
     data = (state, action, reward, not terminal)
     if len(self.buffer) <= self.memory_size: # buffer not full
       self.buffer.append(data)
@@ -225,3 +226,16 @@ class ReplayMemory(object):
   
   def size(self):
       return len(self.buffer)
+
+  def __iter__(self):
+    self.current_idx = 0
+    return self
+
+  # Return valid states for validation
+  def __next__(self):
+    if self.current_idx == self.capacity:
+      raise StopIteration
+    data = self.buffer[self.current_idx]
+    state = torch.tensor(data[0], dtype=torch.float32, device=self.device).div_(255)  # Agent will turn into batch
+    self.current_idx += 1
+    return state
