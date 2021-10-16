@@ -1,10 +1,8 @@
-Rainbow
+From ordinary DQN to Rainbow
 =======
-[![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
+Results and pretrained models will be released soon.
 
 Rainbow: Combining Improvements in Deep Reinforcement Learning [[1]](#references).
-
-Results and pretrained models can be found in the [releases](https://github.com/Kaixhin/Rainbow/releases).
 
 - [x] DQN [[2]](#references)
 - [x] Double DQN [[3]](#references)
@@ -14,16 +12,33 @@ Results and pretrained models can be found in the [releases](https://github.com/
 - [x] Distributional RL [[7]](#references)
 - [x] Noisy Nets [[8]](#references)
 
-Run the original Rainbow with the default arguments:
+Run the ordinary DQN with the default arguments:
 
 ```
 python main.py
 ```
 
+Run the original Rainbow [[1]](#references) using the following options:
+
+```
+python main.py --double \
+               --duel \
+               --noisy \
+               --distributional \
+               --multi-step 3 \
+               --prioritize
+```
+
 Data-efficient Rainbow [[9]](#references) can be run using the following options (note that the "unbounded" memory is implemented here in practice by manually setting the memory capacity to be the same as the maximum number of timesteps):
 
 ```
-python main.py --target-update 2000 \
+python main.py --double \
+               --duel \
+               --noisy \
+               --distributional \
+               --multi-step=3 \
+               --prioritize \
+               --target-update 2000 \
                --T-max 100000 \
                --learn-start 1600 \
                --memory-capacity 100000 \
@@ -34,8 +49,6 @@ python main.py --target-update 2000 \
                --learning-rate 0.0001 \
                --evaluation-interval 10000
 ```
-
-Note that pretrained models from the [`1.3`](https://github.com/Kaixhin/Rainbow/releases/tag/1.3) release used a (slightly) incorrect network architecture. To use these, change the padding in the first convolutional layer from 0 to 1 (DeepMind uses "valid" (no) padding).
 
 Requirements
 ------------
@@ -52,11 +65,7 @@ Available Atari games can be found in the [`atari-py` ROMs folder](https://githu
 Acknowledgements
 ----------------
 
-- [@floringogianu](https://github.com/floringogianu) for [categorical-dqn](https://github.com/floringogianu/categorical-dqn)
-- [@jvmancuso](https://github.com/jvmancuso) for [Noisy layer](https://github.com/pytorch/pytorch/pull/2103)
-- [@jaara](https://github.com/jaara) for [AI-blog](https://github.com/jaara/AI-blog)
-- [@openai](https://github.com/openai) for [Baselines](https://github.com/openai/baselines)
-- [@mtthss](https://github.com/mtthss) for [implementation details](https://github.com/Kaixhin/Rainbow/wiki/Matteo's-Notes)
+- [@Kaixhin](https://github.com/Kaixhin) for [Rainbow implemention](https://github.com/Kaixhin/Rainbow)
 
 References
 ----------
