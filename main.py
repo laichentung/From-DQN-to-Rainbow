@@ -175,7 +175,8 @@ else:
 
     # Train and test
     if T >= args.learn_start:
-      mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
+      if args.prioritize:
+        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
 
       if T % args.replay_frequency == 0:
         dqn.learn(mem)  # Train with n-step distributional double-Q learning
