@@ -148,7 +148,7 @@ while T < args.evaluation_size:
     state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.push(state, -1, 0.0, np.zeros_like(next_state), done)###
+  val_mem.push(state, -1, 0.0, torch.zeros_like(next_state), done)###
   state = next_state
   T += 1
 
