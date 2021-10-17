@@ -190,9 +190,10 @@ class ReplayMemory(object):
     self.n = args.multi_step
     self.next_idx = 0
       
-  def push(self, state, action, reward, terminal):
+  def push(self, state, action, reward, next_state, terminal):
     state = state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
-    data = (state, action, reward, not terminal)
+    next_state = next_state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
+    data = (state, action, reward, next_state, not terminal)
     if len(self.buffer) <= self.memory_size: # buffer not full
       self.buffer.append(data)
     else: # buffer is full
@@ -209,12 +210,12 @@ class ReplayMemory(object):
       data = self.buffer[begin:finish]
       state = data[0][0]
       action = data[0][1]
-      nonterminal = data[0][3]
+      nonterminal = data[0][4]
       for j in range(self.n):
         # compute the n-th reward
-        sum_reward += (self.gamma**j) * data[j][2]
-        states_look_ahead = data[j+1][0]
-        if not data[j][3]:
+        sum_reward += (self.discount**j) * data[j][2]
+        states_look_ahead = data[j][3]
+        if not data[j][4]:
           break
       
       states.append(state)

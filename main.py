@@ -148,7 +148,7 @@ while T < args.evaluation_size:
     state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.push(state, -1, 0.0, done)###
+  val_mem.push(state, -1, 0.0, np.zeros_like(next_state), done)###
   state = next_state
   T += 1
 
@@ -171,7 +171,7 @@ else:
     next_state, reward, done = env.step(action)  # Step
     if args.reward_clip > 0:
       reward = max(min(reward, args.reward_clip), -args.reward_clip)  # Clip rewards
-    mem.push(state, action, reward, done)  # Append transition to memory
+    mem.push(state, action, reward, next_state, done)  # Append transition to memory
 
     # Train and test
     if T >= args.learn_start:
