@@ -164,7 +164,7 @@ else:
     if done:
       state = env.reset()
 
-    if T % args.replay_frequency == 0:
+    if args.noisy and T % args.replay_frequency == 0:
       dqn.reset_noise()  # Draw a new set of noisy weights
 
     action = dqn.act(state)  # Choose an action greedily (with noisy weights)
