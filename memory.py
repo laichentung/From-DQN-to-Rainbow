@@ -2,6 +2,7 @@
 from __future__ import division
 import numpy as np
 import torch
+import random
 
 
 Transition_dtype = np.dtype([('timestep', np.int32), ('state', np.uint8, (84, 84)), ('action', np.int32), ('reward', np.float32), ('nonterminal', np.bool_)])
