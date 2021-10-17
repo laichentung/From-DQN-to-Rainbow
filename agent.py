@@ -11,6 +11,11 @@ from model import DQN
 
 class Agent():
   def __init__(self, args, env):
+    self.double = args.double
+    self.duel = args.duel
+    self.noisy = args.noisy
+    self.distributional = args.distributional
+    self.prioritize = args.prioritize
     self.action_space = env.action_space()
     self.batch_size = args.batch_size
     self.n = args.multi_step
@@ -54,7 +59,7 @@ class Agent():
   # Acts based on single state (no batch)
   def act(self, state):
     with torch.no_grad():
-      if args.distributional:
+      if self.distributional:
         return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).argmax(1).item()
       else:
         return self.online_net(state.unsqueeze(0)).argmax(1).item()
@@ -64,13 +69,13 @@ class Agent():
     return np.random.randint(0, self.action_space) if np.random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
-    if args.prioritize:
+    if self.prioritize:
       # Sample transitions
       idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
     else:
       states, actions, returns, next_states, nonterminals = mem.sample(self.batch_size)
 
-    if args.distributional:
+    if self.distributional:
       # Calculate current state probabilities (online network noise already sampled)
       log_ps = self.online_net(states, log=True)  # Log probabilities log p(s_t, ·; θonline), shape: (-1, action_space, atoms)
       log_ps_a = log_ps[range(self.batch_size), actions]  # log p(s_t, a_t; θonline), shape: (-1, 1, atoms)
@@ -80,8 +85,8 @@ class Agent():
         pns = self.online_net(next_states)  # Probabilities p(s_t+n, ·; θonline)
         dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
         argmax_indices_ns = dns.sum(2).argmax(1)  # Perform argmax action selection using online network: argmax_a[(z, p(s_t+n, a; θonline))]
-        if args.double:
-          if args.noisy:
+        if self.double:
+          if self.noisy:
             self.target_net.reset_noise()  # Sample new target net noise
           pns = self.target_net(next_states)  # Probabilities p(s_t+n, ·; θtarget)
         pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
@@ -111,8 +116,8 @@ class Agent():
       with torch.no_grad():
         qns = self.online_net(next_states)
         argmax_indices_ns = qns.argmax(1)
-        if args.double:
-          if args.noisy:
+        if self.double:
+          if self.noisy:
             self.target_net.reset_noise()
           qns = self.target_net(next_states)
         qns_a = qns[range(self.batch_size), argmax_indices_ns]
@@ -120,14 +125,14 @@ class Agent():
       loss = torch.square(returns + nonterminals * (self.discount ** self.n) * qns_a - qs_a)###
 
     self.online_net.zero_grad()
-    if args.prioritize:
+    if self.prioritize:
       (weights * loss).mean().backward()  # Backpropagate importance-weighted minibatch loss
     else:
       loss.mean().backward()
     clip_grad_norm_(self.online_net.parameters(), self.norm_clip)  # Clip gradients by L2 norm
     self.optimiser.step()
 
-    if args.prioritize:
+    if self.prioritize:
       mem.update_priorities(idxs, loss.detach().cpu().numpy())  # Update priorities of sampled transitions
 
   def update_target_net(self):
@@ -140,7 +145,7 @@ class Agent():
   # Evaluates Q-value based on single state (no batch)
   def evaluate_q(self, state):###
     with torch.no_grad():
-      if args.distributional:
+      if self.distributional:
         return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).max(1)[0].item()
       else:
         return self.online_net(state.unsqueeze(0)).max(1)[0].item()
