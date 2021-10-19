@@ -21,6 +21,7 @@ class Agent():
     self.n = args.multi_step
     self.discount = args.discount
     self.norm_clip = args.norm_clip
+    self.device = args.device
     if args.distributional:
       self.atoms = args.atoms
       self.Vmin = args.V_min
@@ -73,7 +74,7 @@ class Agent():
       # Sample transitions
       idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
     else:
-      states, actions, returns, next_states, nonterminals = mem.sample(self.batch_size)
+      states, actions, returns, next_states, non_final_mask, empty_next_state_values, idxs, weights = mem.sample(self.batch_size)
 
     if self.distributional:
       # Calculate current state probabilities (online network noise already sampled)
@@ -114,15 +115,17 @@ class Agent():
       qs_a = qs[range(self.batch_size), actions]  # shape: (-1, 1)
 
       with torch.no_grad():
-        qns = self.online_net(next_states)
-        argmax_indices_ns = qns.argmax(1)
-        if self.double:
-          if self.noisy:
-            self.target_net.reset_noise()
-          qns = self.target_net(next_states)
-        qns_a = qns[range(self.batch_size), argmax_indices_ns]
+        qns_a = torch.zeros(self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)
+        if not empty_next_state_values:
+          qns = self.online_net(next_states)
+          argmax_indices_ns = qns.argmax(1)
+          if self.double:
+            if self.noisy:
+              self.target_net.reset_noise()
+            qns = self.target_net(next_states)
+          qns_a[non_final_mask] = qns[range(self.batch_size), argmax_indices_ns]
 
-      loss = torch.square(returns + nonterminals * (self.discount ** self.n) * qns_a - qs_a)###
+      loss = torch.square(returns + ((self.discount ** self.n) * qns_a) - qs_a)
 
     self.online_net.zero_grad()
     if self.prioritize:

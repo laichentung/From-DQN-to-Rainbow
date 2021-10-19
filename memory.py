@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import random
 
-
 Transition_dtype = np.dtype([('timestep', np.int32), ('state', np.uint8, (84, 84)), ('action', np.int32), ('reward', np.float32), ('nonterminal', np.bool_)])
 blank_trans = (0, np.zeros((84, 84), dtype=np.uint8), 0, 0.0, False)
 
@@ -181,53 +180,57 @@ class PrioritizedReplayMemory():
   next = __next__  # Alias __next__ for Python 2 compatibility
 
 
-class ReplayMemory(object):
-  # memory buffer to store episodic memory
+class ReplayMemory:
   def __init__(self, args, capacity):
-    self.buffer = []
-    self.memory_size = capacity
+    self.capacity = capacity
+    self.memory = []
+    self.nstep_buffer = []
     self.discount = args.discount
-    self.n = args.multi_step
-    self.next_idx = 0
-      
-  def push(self, state, action, reward, next_state, terminal):
-    state = state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
-    next_state = next_state[-1].mul(255).to(dtype=torch.uint8, device=torch.device('cpu'))
-    data = (state, action, reward, next_state, not terminal)
-    if len(self.buffer) <= self.memory_size: # buffer not full
-      self.buffer.append(data)
-    else: # buffer is full
-      self.buffer[self.next_idx] = data
-    self.next_idx = (self.next_idx + 1) % self.memory_size
+    self.device = args.device
+    self.nsteps = args.multi_step
+
+  def push(self, s, a, r, s_, done):
+    s_ = None if done else s_
+    self.nstep_buffer.append((s, a, r, s_))
+    if done:
+      while len(self.nstep_buffer) > 0:
+        self._sum_reward_append(s_)
+    else:
+      if(len(self.nstep_buffer)<self.nsteps):
+        return
+      self._sum_reward_append(s_)
+
+  def _sum_reward_append(self, s_):
+    R = sum([self.nstep_buffer[i][2]*(self.discount**i) for i in range(len(self.nstep_buffer))])
+    state, action, _, _ = self.nstep_buffer.pop(0)
+    self.memory.append((state, action, R, s_))
+    if len(self.memory) > self.capacity:
+      del self.memory[0]
+
 
   def sample(self, batch_size):
-    # sample episodic memory
-    states, actions, rewards, next_states, nonterminals = [], [], [], [], []
-    for i in range(batch_size):
-      finish = random.randint(self.n, self.size() - 1)
-      begin = finish-self.n
-      sum_reward = 0 # n_step rewards
-      data = self.buffer[begin:finish]
-      state = data[0][0]
-      action = data[0][1]
-      nonterminal = data[0][4]
-      for j in range(self.n):
-        # compute the n-th reward
-        sum_reward += (self.discount**j) * data[j][2]
-        states_look_ahead = data[j][3]
-        if not data[j][4]:
-          break
-      
-      states.append(state)
-      actions.append(action)
-      rewards.append(sum_reward)
-      next_states.append(states_look_ahead)
-      nonterminals.append(nonterminal)
+    # random transition batch is taken from experience replay memory
+    transitions = random.sample(self.memory, batch_size)
+    
+    batch_state, batch_action, batch_reward, batch_next_state = zip(*transitions)
 
-    return torch.tensor(states), torch.tensor(actions), torch.tensor(rewards), torch.tensor(next_states), torch.tensor(nonterminals)
-  
-  def size(self):
-      return len(self.buffer)
+    # batch_state = torch.tensor(list(batch_state), device=self.device, dtype=torch.float).view(batch_size, 4, 84, 84)
+    batch_state = torch.stack(batch_state).to(device=self.device)
+    batch_action = torch.tensor(batch_action, device=self.device, dtype=torch.long).squeeze().view(-1, 1)
+    batch_reward = torch.tensor(batch_reward, device=self.device, dtype=torch.float).squeeze().view(-1, 1)
+    
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch_next_state)), device=self.device, dtype=torch.uint8)
+    try: #sometimes all next states are false
+      non_final_next_states = torch.stack([s for s in batch_next_state if s is not None]).to(device=self.device)
+      empty_next_state_values = False
+    except:
+      non_final_next_states = None
+      empty_next_state_values = True
+
+    return batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values, None, None
+
+  def __len__(self):
+    return len(self.memory)
 
   def __iter__(self):
     self.current_idx = 0
@@ -237,7 +240,10 @@ class ReplayMemory(object):
   def __next__(self):
     if self.current_idx == self.capacity:
       raise StopIteration
-    data = self.buffer[self.current_idx]
-    state = torch.tensor(data[0], dtype=torch.float32, device=self.device).div_(255)  # Agent will turn into batch
+    data = self.memory[self.current_idx]
+    state = torch.tensor(data[0], device=self.device, dtype=torch.float)  # Agent will turn into batch
     self.current_idx += 1
     return state
+
+
+
