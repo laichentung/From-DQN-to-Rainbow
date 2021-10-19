@@ -148,7 +148,7 @@ while T < args.evaluation_size:
     state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.push(state, -1, 0.0, torch.zeros_like(next_state), done)###
+  val_mem.simple_push(state, -1, 0.0, None)###
   state = next_state
   T += 1
 
@@ -179,7 +179,7 @@ else:
         mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
 
       if T % args.replay_frequency == 0:
-        dqn.learn(mem)  # Train with n-step distributional double-Q learning
+        dqn.learn(mem)
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (online network) to evaluation mode

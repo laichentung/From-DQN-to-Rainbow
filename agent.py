@@ -112,18 +112,22 @@ class Agent():
 
     else:
       qs = self.online_net(states)
-      qs_a = qs[range(self.batch_size), actions]  # shape: (-1, 1)
+      # qs_a = qs[range(self.batch_size), actions]  # shape: (32,)
+      qs_a = qs.gather(1, actions)  # actions shape: (32, 1)
 
       with torch.no_grad():
-        qns_a = torch.zeros(self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)
+        qns_a = torch.zeros(self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)  # shape: (32, 1)
         if not empty_next_state_values:
-          qns = self.online_net(next_states)
-          argmax_indices_ns = qns.argmax(1)
+          qns = self.online_net(next_states)  # (29, 6)
+          # argmax_indices_ns = qns.argmax(1)  # (29, 1)
+          argmax_indices_ns = qns.max(dim=1)[1].view(-1, 1)  # shape (29, 1)
+
           if self.double:
             if self.noisy:
               self.target_net.reset_noise()
-            qns = self.target_net(next_states)
-          qns_a[non_final_mask] = qns[range(self.batch_size), argmax_indices_ns]
+            qns = self.target_net(next_states)  # (29, 6)
+          # qns_a[non_final_mask] = qns[range(self.batch_size), argmax_indices_ns]  # () vs (29,)
+          qns_a[non_final_mask] = qns.gather(1, argmax_indices_ns)
 
       loss = torch.square(returns + ((self.discount ** self.n) * qns_a) - qs_a)
 

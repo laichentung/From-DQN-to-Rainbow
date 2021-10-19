@@ -207,6 +207,8 @@ class ReplayMemory:
     if len(self.memory) > self.capacity:
       del self.memory[0]
 
+  def simple_push(self, s, a, r, s_):
+    self.memory.append((s, a, r, s_))
 
   def sample(self, batch_size):
     # random transition batch is taken from experience replay memory
@@ -219,7 +221,7 @@ class ReplayMemory:
     batch_action = torch.tensor(batch_action, device=self.device, dtype=torch.long).squeeze().view(-1, 1)
     batch_reward = torch.tensor(batch_reward, device=self.device, dtype=torch.float).squeeze().view(-1, 1)
     
-    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch_next_state)), device=self.device, dtype=torch.uint8)
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch_next_state)), device=self.device, dtype=torch.bool)
     try: #sometimes all next states are false
       non_final_next_states = torch.stack([s for s in batch_next_state if s is not None]).to(device=self.device)
       empty_next_state_values = False
