@@ -2,7 +2,7 @@ From DQN to Rainbow
 =======
 - [x] DQN [[1]](#references)
 - [x] Double DQN [[2]](#references)
-- [x] Prioritised Experience Replay [[3]](#references)
+- [x] Prioritized Experience Replay [[3]](#references)
 - [x] Dueling Network Architecture [[4]](#references)
 - [x] Multi-step Returns [[5]](#references)
 - [x] Distributional RL [[6]](#references)
