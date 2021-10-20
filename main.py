@@ -22,12 +22,12 @@ parser = argparse.ArgumentParser(description='Rainbow')
 parser.add_argument('--seed', type=int, default=123, help='Random seed')
 parser.add_argument('--disable-cuda', action='store_true', help='Disable CUDA')
 parser.add_argument('--game', type=str, default='space_invaders', choices=atari_py.list_games(), help='ATARI game')
-parser.add_argument('--T-max', type=int, default=int(50e6), metavar='STEPS', help='Number of training steps (4x number of frames)')
+parser.add_argument('--T-max', type=int, default=int(50e5), metavar='STEPS', help='Number of training steps (4x number of frames)')
 parser.add_argument('--max-episode-length', type=int, default=int(108e3), metavar='LENGTH', help='Max episode length in game frames (0 to disable)')
 parser.add_argument('--history-length', type=int, default=4, metavar='T', help='Number of consecutive states processed')
 parser.add_argument('--architecture', type=str, default='canonical', choices=['canonical', 'data-efficient'], metavar='ARCH', help='Network architecture')
 parser.add_argument('--hidden-size', type=int, default=512, metavar='SIZE', help='Network hidden size')
-parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')#default='./space_invaders.pth'
+parser.add_argument('--model', type=str, metavar='PARAMS', help='Pretrained model (state dict)')
 parser.add_argument('--memory-capacity', type=int, default=int(1e6), metavar='CAPACITY', help='Experience replay memory capacity')
 parser.add_argument('--replay-frequency', type=int, default=4, metavar='k', help='Frequency of sampling from memory')
 parser.add_argument('--discount', type=float, default=0.99, metavar='γ', help='Discount factor')
@@ -53,7 +53,7 @@ parser.add_argument('--double', action='store_true', help='Use target network')
 parser.add_argument('--duel', action='store_true', help='Predict value and advantages for Q')
 parser.add_argument('--noisy', action='store_true', help='Noisy network for exploration')
 parser.add_argument('--distributional', action='store_true', help='Distributional Q value')
-parser.add_argument('--multi-step', type=int, default=3, metavar='n', help='Number of steps for multi-step return')
+parser.add_argument('--multi-step', type=int, default=1, metavar='n', help='Number of steps for multi-step return')
 parser.add_argument('--prioritize', action='store_true', help='Prioritized Experience Replay')
 
 parser.add_argument('--target-update', type=int, default=int(8e3), metavar='τ', help='Number of steps after which to update target network')
@@ -134,21 +134,15 @@ else:
   else:
     mem = ReplayMemory(args, args.memory_capacity)
 
-priority_weight_increase = (1 - args.priority_weight) / (args.T_max - args.learn_start)###
-
-
 # Construct validation memory
-if args.prioritize:
-  val_mem = PrioritizedReplayMemory(args, args.evaluation_size)
-else:
-  val_mem = ReplayMemory(args, args.evaluation_size)
+val_mem = ReplayMemory(args, args.evaluation_size)
 T, done = 0, True
 while T < args.evaluation_size:
   if done:
     state = env.reset()
 
   next_state, _, done = env.step(np.random.randint(0, action_space))
-  val_mem.simple_push(state, -1, 0.0, None)###
+  val_mem.simple_push(state, -1, 0.0, None)
   state = next_state
   T += 1
 
@@ -175,9 +169,6 @@ else:
 
     # Train and test
     if T >= args.learn_start:
-      if args.prioritize:
-        mem.priority_weight = min(mem.priority_weight + priority_weight_increase, 1)  # Anneal importance sampling weight β to 1
-
       if T % args.replay_frequency == 0:
         dqn.learn(mem)
 

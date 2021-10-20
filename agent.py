@@ -70,41 +70,34 @@ class Agent():
     return np.random.randint(0, self.action_space) if np.random.random() < epsilon else self.act(state)
 
   def learn(self, mem):
-    if self.prioritize:
-      # Sample transitions
-      idxs, states, actions, returns, next_states, nonterminals, weights = mem.sample(self.batch_size)
-    else:
-      states, actions, returns, next_states, non_final_mask, empty_next_state_values, idxs, weights = mem.sample(self.batch_size)
+    states, actions, returns, next_states, non_final_mask, empty_next_state_values, idxs, weights = mem.sample(self.batch_size)
 
     if self.distributional:
-      # Calculate current state probabilities (online network noise already sampled)
-      log_ps = self.online_net(states, log=True)  # Log probabilities log p(s_t, ·; θonline), shape: (-1, action_space, atoms)
-      log_ps_a = log_ps[range(self.batch_size), actions]  # log p(s_t, a_t; θonline), shape: (-1, 1, atoms)
+      actions = actions.unsqueeze(dim=-1).expand(-1, -1, self.atoms)
+      returns = returns.view(-1, 1, 1)
+
+      log_ps = self.online_net(states, log=True)
+      log_ps_a = log_ps.gather(1, actions).squeeze()
 
       with torch.no_grad():
-        # Calculate nth next state probabilities
-        pns = self.online_net(next_states)  # Probabilities p(s_t+n, ·; θonline)
-        dns = self.support.expand_as(pns) * pns  # Distribution d_t+n = (z, p(s_t+n, ·; θonline))
-        argmax_indices_ns = dns.sum(2).argmax(1)  # Perform argmax action selection using online network: argmax_a[(z, p(s_t+n, a; θonline))]
-        if self.double:
-          if self.noisy:
-            self.target_net.reset_noise()  # Sample new target net noise
-          pns = self.target_net(next_states)  # Probabilities p(s_t+n, ·; θtarget)
-        pns_a = pns[range(self.batch_size), argmax_indices_ns]  # Double-Q probabilities p(s_t+n, argmax_a[(z, p(s_t+n, a; θonline))]; θtarget)
+        pns_a = torch.zeros((self.batch_size, 1, self.atoms), device=self.device, dtype=torch.float) + 1. / self.atoms
+        if not empty_next_state_values:
+          pns = self.online_net(next_states)
+          dns = pns * self.support
+          argmax_indices_ns = dns.sum(dim=2).max(1)[1].view(next_states.size(0), 1, 1).expand(-1, -1, self.atoms)
+          pns_a[non_final_mask] = self.target_net(next_states).gather(1, argmax_indices_ns)
+          pns_a = pns_a.squeeze()
 
-        # Compute Tz (Bellman operator T applied to z)
-        Tz = returns.unsqueeze(1) + nonterminals * (self.discount ** self.n) * self.support.unsqueeze(0)  # Tz = R^n + (γ^n)z (accounting for terminal states)
-        Tz = Tz.clamp(min=self.Vmin, max=self.Vmax)  # Clamp between supported values
-        # Compute L2 projection of Tz onto fixed support z
-        b = (Tz - self.Vmin) / self.delta_z  # b = (Tz - Vmin) / Δz
-        l, u = b.floor().to(torch.int64), b.ceil().to(torch.int64)
-        # Fix disappearing probability mass when l = b = u (b is int)
+        Tz = returns.view(-1, 1) + (self.discount ** self.n) * self.support.view(1, -1) * non_final_mask.to(torch.float).view(-1, 1)
+        Tz = Tz.clamp(self.Vmin, self.Vmax)
+        b = (Tz - self.Vmin) / self.delta_z
+        l = b.floor().to(torch.int64)
+        u = b.ceil().to(torch.int64)
         l[(u > 0) * (l == u)] -= 1
         u[(l < (self.atoms - 1)) * (l == u)] += 1
 
-        # Distribute probability of Tz
+        offset = torch.linspace(0, (self.batch_size - 1) * self.atoms, self.batch_size).unsqueeze(dim=1).expand(self.batch_size, self.atoms).to(actions)
         m = states.new_zeros(self.batch_size, self.atoms)
-        offset = torch.linspace(0, ((self.batch_size - 1) * self.atoms), self.batch_size).unsqueeze(1).expand(self.batch_size, self.atoms).to(actions)
         m.view(-1).index_add_(0, (l + offset).view(-1), (pns_a * (u.float() - b)).view(-1))  # m_l = m_l + p(s_t+n, a*)(u - b)
         m.view(-1).index_add_(0, (u + offset).view(-1), (pns_a * (b - l.float())).view(-1))  # m_u = m_u + p(s_t+n, a*)(b - l)
 
@@ -112,21 +105,18 @@ class Agent():
 
     else:
       qs = self.online_net(states)
-      # qs_a = qs[range(self.batch_size), actions]  # shape: (32,)
-      qs_a = qs.gather(1, actions)  # actions shape: (32, 1)
+      qs_a = qs.gather(1, actions)
 
       with torch.no_grad():
-        qns_a = torch.zeros(self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)  # shape: (32, 1)
+        qns_a = torch.zeros(self.batch_size, device=self.device, dtype=torch.float).unsqueeze(dim=1)
         if not empty_next_state_values:
-          qns = self.online_net(next_states)  # (29, 6)
-          # argmax_indices_ns = qns.argmax(1)  # (29, 1)
-          argmax_indices_ns = qns.max(dim=1)[1].view(-1, 1)  # shape (29, 1)
+          qns = self.online_net(next_states)
+          argmax_indices_ns = qns.max(dim=1)[1].view(-1, 1)
 
           if self.double:
             if self.noisy:
               self.target_net.reset_noise()
-            qns = self.target_net(next_states)  # (29, 6)
-          # qns_a[non_final_mask] = qns[range(self.batch_size), argmax_indices_ns]  # () vs (29,)
+            qns = self.target_net(next_states)
           qns_a[non_final_mask] = qns.gather(1, argmax_indices_ns)
 
       loss = torch.square(returns + ((self.discount ** self.n) * qns_a) - qs_a)
@@ -150,7 +140,7 @@ class Agent():
     torch.save(self.online_net.state_dict(), os.path.join(path, name))
 
   # Evaluates Q-value based on single state (no batch)
-  def evaluate_q(self, state):###
+  def evaluate_q(self, state):
     with torch.no_grad():
       if self.distributional:
         return (self.online_net(state.unsqueeze(0)) * self.support).sum(2).max(1)[0].item()

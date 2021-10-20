@@ -46,19 +46,16 @@ python main.py --target-update 2000 \
 Requirements
 ------------
 
+- [PyTorch](http://pytorch.org/)
 - [atari-py](https://github.com/openai/atari-py)
 - [OpenCV Python](https://pypi.python.org/pypi/opencv-python)
 - [Plotly](https://plot.ly/)
-- [PyTorch](http://pytorch.org/)
-
-To install all dependencies with Anaconda run `conda env create -f environment.yml` and use `source activate rainbow` to activate the environment.
-
-Available Atari games can be found in the [`atari-py` ROMs folder](https://github.com/openai/atari-py/tree/master/atari_py/atari_roms).
 
 Acknowledgements
 ----------------
 
 - [@Kaixhin](https://github.com/Kaixhin) for [Rainbow implemention](https://github.com/Kaixhin/Rainbow)
+- [@qfettes](https://github.com/qfettes) for [DeepRL-Tutorials](https://github.com/qfettes/DeepRL-Tutorials)
 
 References
 ----------

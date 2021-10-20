@@ -47,8 +47,8 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
       dqn.save(results_dir)
 
     # Append to results and save metrics
-    metrics['rewards'].append(T_rewards) ### evaluation_episodes trajectories' total rewards
-    metrics['Qs'].append(T_Qs)           ### evaluation_size q values
+    metrics['rewards'].append(T_rewards)
+    metrics['Qs'].append(T_Qs)
     torch.save(metrics, os.path.join(results_dir, 'metrics.pth'))
 
     # Plot
@@ -68,8 +68,8 @@ def _plot_line(xs, ys_population, title, path=''):
   ys_upper, ys_lower = ys_mean + ys_std, ys_mean - ys_std
 
   trace_max = Scatter(x=xs, y=ys_max.numpy(), line=Line(color=max_colour, dash='dash'), name='Max')
-  trace_upper = Scatter(x=xs, y=ys_upper.numpy(), fill='tonexty', fillcolor=std_colour, line=Line(color=transparent), name='+1 Std. Dev.', showlegend=False)
-  trace_mean = Scatter(x=xs, y=ys_mean.numpy(), line=Line(color=mean_colour), name='Mean')
+  trace_upper = Scatter(x=xs, y=ys_upper.numpy(), line=Line(color=transparent), name='+1 Std. Dev.', showlegend=False)
+  trace_mean = Scatter(x=xs, y=ys_mean.numpy(), fill='tonexty', fillcolor=std_colour, line=Line(color=mean_colour), name='Mean')
   trace_lower = Scatter(x=xs, y=ys_lower.numpy(), fill='tonexty', fillcolor=std_colour, line=Line(color=transparent), name='-1 Std. Dev.', showlegend=False)
   trace_min = Scatter(x=xs, y=ys_min.numpy(), line=Line(color=max_colour, dash='dash'), name='Min')
 
