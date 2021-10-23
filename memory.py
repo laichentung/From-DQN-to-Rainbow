@@ -266,7 +266,23 @@ class PrioritizedReplayMemory(object):
     self._it_min[idx] = self._max_priority ** self._alpha
 
   def _encode_sample(self, idxes):
-    return [self._storage[i] for i in idxes]
+    transitions = [self._storage[i] for i in idxes]
+
+    batch_state, batch_action, batch_reward, batch_next_state = zip(*transitions)
+    batch_state = torch.stack(batch_state).to(device=self.device)
+    batch_action = torch.tensor(batch_action, device=self.device, dtype=torch.long).squeeze().view(-1, 1)
+    batch_reward = torch.tensor(batch_reward, device=self.device, dtype=torch.float).squeeze().view(-1, 1)
+
+    non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch_next_state)), device=self.device,
+                                  dtype=torch.bool)
+    try:  # sometimes all next states are false
+      non_final_next_states = torch.stack([s for s in batch_next_state if s is not None]).to(device=self.device)
+      empty_next_state_values = False
+    except:
+      non_final_next_states = None
+      empty_next_state_values = True
+
+    return batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values
 
   def _sample_proportional(self, batch_size):
     res = []
@@ -295,8 +311,8 @@ class PrioritizedReplayMemory(object):
       weight = (p_sample * len(self._storage)) ** (-beta)
       weights.append(weight / max_weight)
     weights = torch.tensor(weights, device=self.device, dtype=torch.float)
-    encoded_sample = self._encode_sample(idxes)
-    return encoded_sample, idxes, weights
+    batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values = self._encode_sample(idxes)
+    return batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values, idxes, weights
 
   def update_priorities(self, idxes, priorities):
     assert len(idxes) == len(priorities)
