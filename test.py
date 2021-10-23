@@ -10,7 +10,7 @@ from env import Env
 
 
 # Test DQN
-def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
+def test(args, T, dqn, loss, val_mem, metrics, results_dir, evaluate=False):
   env = Env(args)
   env.eval()
   metrics['steps'].append(T)
@@ -49,11 +49,13 @@ def test(args, T, dqn, val_mem, metrics, results_dir, evaluate=False):
     # Append to results and save metrics
     metrics['rewards'].append(T_rewards)
     metrics['Qs'].append(T_Qs)
+    metrics['loss'].append(loss)
     torch.save(metrics, os.path.join(results_dir, 'metrics.pth'))
 
     # Plot
     _plot_line(metrics['steps'], metrics['rewards'], 'Reward', path=results_dir)
     _plot_line(metrics['steps'], metrics['Qs'], 'Q', path=results_dir)
+    _plot_loss(metrics['steps'], metrics['loss'], 'Loss', path=results_dir)
 
   # Return average reward and Q-value
   return avg_reward, avg_Q
@@ -75,5 +77,15 @@ def _plot_line(xs, ys_population, title, path=''):
 
   plotly.offline.plot({
     'data': [trace_upper, trace_mean, trace_lower, trace_min, trace_max],
+    'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
+  }, filename=os.path.join(path, title + '.html'), auto_open=False)
+
+# Plots min, max and mean + standard deviation bars of a population over time
+def _plot_loss(xs, ys, title, path=''):
+  colour = 'rgb(0, 172, 237)'
+  trace = Scatter(x=xs, y=ys.numpy(), line=Line(color=colour))
+
+  plotly.offline.plot({
+    'data': [trace],
     'layout': dict(title=title, xaxis={'title': 'Step'}, yaxis={'title': title})
   }, filename=os.path.join(path, title + '.html'), auto_open=False)

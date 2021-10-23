@@ -153,7 +153,7 @@ if args.evaluate:
 else:
   # Training loop
   dqn.train()
-  T, done = 0, True
+  T, loss, done = 0, 0, True
   for T in trange(1, args.T_max + 1):
     if done:
       state = env.reset()
@@ -170,12 +170,12 @@ else:
     # Train and test
     if T >= args.learn_start:
       if T % args.replay_frequency == 0:
-        dqn.learn(mem)
+        loss = dqn.learn(mem)
 
       if T % args.evaluation_interval == 0:
         dqn.eval()  # Set DQN (online network) to evaluation mode
-        avg_reward, avg_Q = test(args, T, dqn, val_mem, metrics, results_dir)  # Test
-        log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q))
+        avg_reward, avg_Q = test(args, T, dqn, loss, val_mem, metrics, results_dir)  # Test
+        log('T = ' + str(T) + ' / ' + str(args.T_max) + ' | Avg. reward: ' + str(avg_reward) + ' | Avg. Q: ' + str(avg_Q) + ' | Loss: ' + str(loss))
         dqn.train()  # Set DQN (online network) back to training mode
 
         # If memory path provided, save it
