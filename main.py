@@ -77,7 +77,7 @@ setting = 'setting{' + ''.join([k[:5] + str([vars(args)[v] for v in dic[k]] if v
 results_dir = os.path.join('results', setting)
 if not os.path.exists(results_dir):
   os.makedirs(results_dir)
-metrics = {'steps': [], 'rewards': [], 'Qs': [], 'best_avg_reward': -float('inf')}
+metrics = {'steps': [], 'rewards': [], 'Qs': [], 'loss': [], 'best_avg_reward': -float('inf')}
 np.random.seed(args.seed)
 torch.manual_seed(np.random.randint(1, 10000))
 if torch.cuda.is_available() and not args.disable_cuda:
