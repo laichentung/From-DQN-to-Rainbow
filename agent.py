@@ -132,7 +132,7 @@ class Agent():
     if self.prioritize:
       mem.update_priorities(idxs, loss.detach().cpu().numpy())  # Update priorities of sampled transitions
 
-    return loss.mean().detach().numpy()
+    return loss.mean().detach().item()
 
   def update_target_net(self):
     self.target_net.load_state_dict(self.online_net.state_dict())

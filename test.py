@@ -83,7 +83,7 @@ def _plot_line(xs, ys_population, title, path=''):
 # Plots min, max and mean + standard deviation bars of a population over time
 def _plot_loss(xs, ys, title, path=''):
   colour = 'rgb(0, 172, 237)'
-  trace = Scatter(x=xs, y=ys.numpy(), line=Line(color=colour))
+  trace = Scatter(x=xs, y=ys, line=Line(color=colour))
 
   plotly.offline.plot({
     'data': [trace],
